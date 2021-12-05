@@ -1,0 +1,16 @@
+import os
+
+Import('env')
+
+env = env.Clone()
+test_env = env.Clone()
+
+common_libs = ['pthread']
+test_libs = ['gtest_main', 'gtest']
+
+env.Append( LIBS = common_libs )
+
+test_env.Append( LIBS = test_libs )
+test_env.Append( LIBS = common_libs )
+
+test_env.Program(source=['thread_monitor_test.cpp'], LIBPATH=['/usr/gtest'])

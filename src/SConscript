@@ -1,0 +1,8 @@
+import platform
+
+env = Environment()
+
+if platform.system() == 'Linux':
+    env.Append(LIBPATH='/opt/gtest/lib')
+
+SConscript(['thread_monitor/SConscript'], exports='env')
