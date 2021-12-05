@@ -1,6 +1,8 @@
 import platform
 
 env = Environment()
+env.Append( CPPPATH=['.'] )
+env.Append( CXXFLAGS="-std=c++17" )
 
 if platform.system() == 'Linux':
     env.Append(LIBPATH='/opt/gtest/lib')
