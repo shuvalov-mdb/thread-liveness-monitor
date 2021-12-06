@@ -1,44 +1,102 @@
-#include <ctime>
+#include <atomic>
 #include <chrono>
+#include <ctime>
 #include <string>
-
-#include "thread_monitor/thread_monitor_impl.h"
+#include <vector>
 
 namespace thread_monitor {
 
-struct ThreadMonitorStdTimeSupport {
-    using TimePoint = std::chrono::time_point<std::chrono::system_clock>;
-};
-
-template <unsigned int HistoryDepth = 10,
-          typename TimeSupport = ThreadMonitorStdTimeSupport>
-class ThreadMonitor {
+namespace details {
+class ThreadMonitorBase {
 public:
-    ThreadMonitor(std::string name);
+  struct InternalHistoryRecord {
+    std::atomic<uint32_t> checkpointId;
+    std::atomic<uint64_t> timestampMicrosFromReferencePoint;
+
+#ifndef NDEBUG
+    // Sequence number is very expensive to generate and thus
+    // it should be used only with debug builds.
+    std::atomic<uint64_t> sequence;
+#endif
+  };
+
+  struct HistoryRecord {
+    uint32_t checkpointId;
+    //std::chrono:: timestamp;
+
+#ifndef NDEBUG
+    // Sequence number is very expensive to generate and thus
+    // it should be used only with debug builds.
+    uint64_t sequence;
+#endif
+  };
+
+  using History = std::vector<HistoryRecord>;
+
+  bool isEnabled() const;
+
+  const std::string &name() const;
+
+  /**
+   * Returns the snapshot of History, which is the vector of
+   * recently visited checkpoints.
+   */
+  History getHistory() const;
+
+protected:
+  ThreadMonitorBase(std::string name, InternalHistoryRecord *historyPtr,
+                    uint32_t historyDepth, uint32_t firstCheckpointId);
+  // The inheritance is non-virtual as the instance of this class can exist
+  // only on the stack and the destructor by the pointer of the base class
+  // cannot be invoked.
+  ~ThreadMonitorBase();
+
+  ThreadMonitorBase(const ThreadMonitorBase &) = delete;
+  ThreadMonitorBase &operator=(const ThreadMonitorBase &) = delete;
+
+protected:
+  /**
+   * Register a checkpoint with 'id' for this monitor, if enabled.
+   * This is internal implementation to be accessed from
+   * threadMonitorCheckpoint().
+   */
+  void checkpointInternalImpl(uint32_t id);
+
+  void writeCheckpointAtPosition(uint32_t index, uint32_t id);
 
 private:
-    struct History {
-        uint32_t checkpointId;
-        typename TimeSupport::TimePoint timestamp;
+  void _maybeRegisterThreadLocal();
 
-#       ifndef NDEBUG
-        // Sequence number is very expensive to generate and thus
-        // it should be used only with debug builds.
-        uint64_t sequence;
-#       endif
-    };
+  const std::string _name;
+  InternalHistoryRecord *const _historyPtr;
+  const uint32_t _historyDepth;
 
-    const std::string _name;
+  // Thread monitor is disabled if there is another instance up the stack.
+  bool _enabled = false;
+  // History is not guarded by a mutex. Instead, the update sequence is:
+  // 1. Advance head if the list is full
+  // 2. Insert new record (possibly where the head was before)
+  // 3. Advance tail
+  // Thus non-atomic value insertion happens outside of head-tail interval.
+  std::atomic<uint32_t> _headHistoryRecord = _historyDepth;
+  std::atomic<uint32_t> _tailHistoryRecord = _historyDepth;
+};
+} // namespace details
 
-    History _history[HistoryDepth];
+template <uint32_t HistoryDepth = 10>
+class ThreadMonitor : public details::ThreadMonitorBase {
+public:
+  ThreadMonitor(std::string name, uint32_t firstCheckpointId);
+
+private:
+  // The actual history circular list is stored on stack.
+  InternalHistoryRecord _history[HistoryDepth];
 };
 
 void threadMonitorCheckpoint(uint32_t checkpointId);
 
-template <unsigned int HistoryDepth,
-          typename TimeSupport>
-ThreadMonitor<HistoryDepth, TimeSupport>::ThreadMonitor(std::string name) : _name(name) {
+template <uint32_t HistoryDepth>
+ThreadMonitor<HistoryDepth>::ThreadMonitor(std::string name, uint32_t firstCheckpointId)
+    : ThreadMonitorBase(std::move(name), _history, HistoryDepth, firstCheckpointId) {}
 
-}
-
-}  // namespace thread_monitor
+} // namespace thread_monitor
