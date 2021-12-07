@@ -6,12 +6,14 @@
 
 namespace thread_monitor {
 
+void threadMonitorCheckpoint(uint32_t checkpointId);
+
 namespace details {
 class ThreadMonitorBase {
 public:
   struct InternalHistoryRecord {
     std::atomic<uint32_t> checkpointId;
-    std::atomic<uint64_t> timestampMicrosFromReferencePoint;
+    std::atomic<std::chrono::system_clock::duration> durationFromCreation;
 
 #ifndef NDEBUG
     // Sequence number is very expensive to generate and thus
@@ -22,7 +24,7 @@ public:
 
   struct HistoryRecord {
     uint32_t checkpointId;
-    //std::chrono:: timestamp;
+    std::chrono::system_clock::time_point timestamp;
 
 #ifndef NDEBUG
     // Sequence number is very expensive to generate and thus
@@ -36,6 +38,8 @@ public:
   bool isEnabled() const;
 
   const std::string &name() const;
+
+  unsigned int depth() const;
 
   /**
    * Returns the snapshot of History, which is the vector of
@@ -65,11 +69,16 @@ protected:
   void writeCheckpointAtPosition(uint32_t index, uint32_t id);
 
 private:
+  friend void ::thread_monitor::threadMonitorCheckpoint(uint32_t checkpointId);
+
   void _maybeRegisterThreadLocal();
 
   const std::string _name;
   InternalHistoryRecord *const _historyPtr;
   const uint32_t _historyDepth;
+
+  const std::chrono::system_clock::time_point _creationTimestamp =
+      std::chrono::system_clock::now();
 
   // Thread monitor is disabled if there is another instance up the stack.
   bool _enabled = false;
@@ -80,6 +89,10 @@ private:
   // Thus non-atomic value insertion happens outside of head-tail interval.
   std::atomic<uint32_t> _headHistoryRecord = _historyDepth;
   std::atomic<uint32_t> _tailHistoryRecord = _historyDepth;
+
+#ifndef NDEBUG
+  std::atomic<uint64_t> _globalSequence{0};
+#endif
 };
 } // namespace details
 
@@ -93,10 +106,10 @@ private:
   InternalHistoryRecord _history[HistoryDepth];
 };
 
-void threadMonitorCheckpoint(uint32_t checkpointId);
-
 template <uint32_t HistoryDepth>
-ThreadMonitor<HistoryDepth>::ThreadMonitor(std::string name, uint32_t firstCheckpointId)
-    : ThreadMonitorBase(std::move(name), _history, HistoryDepth, firstCheckpointId) {}
+ThreadMonitor<HistoryDepth>::ThreadMonitor(std::string name,
+                                           uint32_t firstCheckpointId)
+    : ThreadMonitorBase(std::move(name), _history, HistoryDepth,
+                        firstCheckpointId) {}
 
 } // namespace thread_monitor
