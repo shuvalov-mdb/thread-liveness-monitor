@@ -31,9 +31,11 @@ ThreadMonitorBase::ThreadMonitorBase(std::string name,
     return;
   }
   checkpointInternalImpl(firstCheckpointId);
-  _registration = ThreadMonitorCentralRepository::instance()->registerThread(
+  auto* centralRepo = ThreadMonitorCentralRepository::instance();
+  _registration = centralRepo->registerThread(
       _threadId, this,
       _creationTimestamp + _historyPtr[0].durationFromCreation.load());
+  _centralRepoUpdateInterval = centralRepo->reportingInterval();
 }
 
 ThreadMonitorBase::~ThreadMonitorBase() {
@@ -86,7 +88,7 @@ void ThreadMonitorBase::checkpointInternalImpl(uint32_t id) {
           _historyPtr[_tailHistoryRecord.load()].durationFromCreation.load() <
       kHistoryResolution) {
     // We do not pollute the history with very close values. Instead, replace
-    // the last one.
+    // the last one. This optimization did not affect the benchmarks.
     writeCheckpointAtPosition(_tailHistoryRecord.load(), id, now);
     maybeUpdateCentralRepository(now);
     return;
@@ -164,10 +166,12 @@ ThreadMonitorBase::History ThreadMonitorBase::getHistory() const {
   return history;
 }
 
-std::chrono::system_clock::time_point ThreadMonitorBase::lastCheckpointTime() const {
+std::chrono::system_clock::time_point
+ThreadMonitorBase::lastCheckpointTime() const {
   while (true) {
     const auto initialTail = _tailHistoryRecord.load();
-    const auto timestamp = _creationTimestamp + _historyPtr[initialTail].durationFromCreation.load();
+    const auto timestamp = _creationTimestamp +
+                           _historyPtr[initialTail].durationFromCreation.load();
     // Subtle race - is the tail still there?
     if (initialTail == _tailHistoryRecord.load()) {
       return timestamp;
@@ -176,13 +180,32 @@ std::chrono::system_clock::time_point ThreadMonitorBase::lastCheckpointTime() co
 }
 
 void ThreadMonitorBase::maybeUpdateCentralRepository(
-    std::chrono::system_clock::time_point timestamp) {}
+    std::chrono::system_clock::time_point timestamp) {
+  if (timestamp - _lastCentralRepoUpdateTimestamp < _centralRepoUpdateInterval) {
+    return;
+  }
+  _lastCentralRepoUpdateTimestamp = timestamp;
+  _registration->lastSeenAlive = timestamp;
+}
 
-void ThreadMonitorBase::printHistory(const ThreadMonitorBase::History& history) {
-  for (const auto& h : history) {
+void ThreadMonitorBase::printHistory(
+    const ThreadMonitorBase::History &history) {
+  std::chrono::system_clock::time_point previous =
+      history.empty() ? std::chrono::system_clock::time_point::min()
+                      : history[0].timestamp;
+  for (const auto &h : history) {
+    auto microsecs = std::chrono::duration_cast<std::chrono::microseconds>(
+                         h.timestamp.time_since_epoch()) %
+                     1000000;
     auto in_time_t = std::chrono::system_clock::to_time_t(h.timestamp);
-    std::cerr << "Checkpoint: " << h.checkpointId << " at: "
-      << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d %X");
+    std::cerr << "Checkpoint: " << h.checkpointId << " \tat: "
+              << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d %X") << "."
+              << microsecs.count();
+    std::cerr << "\tdelta: "
+              << std::chrono::duration_cast<std::chrono::microseconds>(
+                     h.timestamp - previous)
+                     .count()
+              << " us";
 #ifndef NDEBUG
     std::cerr << h.sequence;
 #endif

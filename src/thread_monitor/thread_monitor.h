@@ -86,7 +86,7 @@ public:
    */
   std::chrono::system_clock::time_point lastCheckpointTime() const;
 
-  static void printHistory(const History& history);
+  static void printHistory(const History &history);
 
 protected:
   ThreadMonitorBase(std::string name, InternalHistoryRecord *historyPtr,
@@ -106,11 +106,13 @@ protected:
    */
   void checkpointInternalImpl(uint32_t id);
 
-  void writeCheckpointAtPosition(uint32_t index, uint32_t id,
-                                 std::chrono::system_clock::time_point timestamp);
+  void
+  writeCheckpointAtPosition(uint32_t index, uint32_t id,
+                            std::chrono::system_clock::time_point timestamp);
 
   // We only update the central repository once in a while, for performance.
-  void maybeUpdateCentralRepository(std::chrono::system_clock::time_point timestamp);
+  void
+  maybeUpdateCentralRepository(std::chrono::system_clock::time_point timestamp);
 
 private:
   friend void ::thread_monitor::threadMonitorCheckpoint(uint32_t checkpointId);
@@ -134,6 +136,11 @@ private:
   // Thus non-atomic value insertion happens outside of head-tail interval.
   std::atomic<uint32_t> _headHistoryRecord = _historyDepth;
   std::atomic<uint32_t> _tailHistoryRecord = _historyDepth;
+
+  // Prorate updates to central repository to avoid cache misses.
+  std::chrono::system_clock::time_point _lastCentralRepoUpdateTimestamp =
+    _creationTimestamp;
+  std::chrono::system_clock::duration _centralRepoUpdateInterval;
 
   ThreadMonitorCentralRepository::ThreadRegistration *_registration;
 
