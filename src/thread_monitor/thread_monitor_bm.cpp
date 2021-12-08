@@ -7,12 +7,12 @@
 namespace thread_monitor {
 namespace {
 
-static void BM_ConcurrentCreateDelete(benchmark::State &state) {
-  ThreadMonitorCentralRepository::instance()->runMonitorCycle();
-  for (auto _ : state) {
-    ThreadMonitor<> monitor("test", 1);
-  }
-  ThreadMonitorCentralRepository::instance()->runMonitorCycle();
+static void BM_ConcurrentCreateDelete(benchmark::State& state) {
+    ThreadMonitorCentralRepository::instance()->runMonitorCycle();
+    for (auto _ : state) {
+        ThreadMonitor<> monitor("test", 1);
+    }
+    ThreadMonitorCentralRepository::instance()->runMonitorCycle();
 }
 
 BENCHMARK(BM_ConcurrentCreateDelete)->Threads(1)->MinTime(2);
@@ -23,12 +23,12 @@ BENCHMARK(BM_ConcurrentCreateDelete)->Threads(32)->MinTime(2);
 BENCHMARK(BM_ConcurrentCreateDelete)->Threads(64)->MinTime(2);
 BENCHMARK(BM_ConcurrentCreateDelete)->Threads(128)->MinTime(2);
 
-static void BM_Checkpoint(benchmark::State &state) {
-  ThreadMonitorCentralRepository::instance()->runMonitorCycle();
-  ThreadMonitor<> monitor("test", 1);
-  for (auto _ : state) {
-    threadMonitorCheckpoint(2);
-  }
+static void BM_Checkpoint(benchmark::State& state) {
+    ThreadMonitorCentralRepository::instance()->runMonitorCycle();
+    ThreadMonitor<> monitor("test", 1);
+    for (auto _ : state) {
+        threadMonitorCheckpoint(2);
+    }
 }
 
 BENCHMARK(BM_Checkpoint)->Threads(1)->MinTime(1);
@@ -39,12 +39,12 @@ BENCHMARK(BM_Checkpoint)->Threads(32)->MinTime(1);
 BENCHMARK(BM_Checkpoint)->Threads(64)->MinTime(1);
 BENCHMARK(BM_Checkpoint)->Threads(128)->MinTime(1);
 
-static void BM_GCAndMonitor(benchmark::State &state) {
-  ThreadMonitorCentralRepository::instance()->runMonitorCycle();
-  ThreadMonitor<> monitor("test", 1);
-  for (auto _ : state) {
+static void BM_GCAndMonitor(benchmark::State& state) {
     ThreadMonitorCentralRepository::instance()->runMonitorCycle();
-  }
+    ThreadMonitor<> monitor("test", 1);
+    for (auto _ : state) {
+        ThreadMonitorCentralRepository::instance()->runMonitorCycle();
+    }
 }
 
 BENCHMARK(BM_GCAndMonitor)->Threads(1)->MinTime(1);
@@ -56,7 +56,7 @@ BENCHMARK(BM_GCAndMonitor)->Threads(256)->MinTime(1);
 BENCHMARK(BM_GCAndMonitor)->Threads(512)->MinTime(1);
 BENCHMARK(BM_GCAndMonitor)->Threads(1024)->MinTime(1);
 
-} // namespace
-} // namespace thread_monitor
+}  // namespace
+}  // namespace thread_monitor
 
 BENCHMARK_MAIN();
