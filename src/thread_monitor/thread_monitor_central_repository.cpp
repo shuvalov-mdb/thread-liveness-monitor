@@ -31,20 +31,22 @@ void ThreadMonitorCentralRepository::setThreadTimeout(std::chrono::system_clock:
 ThreadMonitorCentralRepository::ThreadRegistration* ThreadMonitorCentralRepository::registerThread(
         std::thread::id threadId, details::ThreadMonitorBase* monitor,
         std::chrono::system_clock::time_point now) {
-    // Keep trying shards to find a non-locked one.
-    for (int shard = std::hash<std::thread::id>{}(threadId) % kShards;;) {
-        // Keep trying to lock a shard.
-        if (!_registrations[shard].second.try_lock()) {
-            if (++shard >= kShards) { shard = 0; }
-            continue;
-        }
-        std::lock_guard<std::mutex> lock(_registrations[shard].second, std::adopt_lock);
+    const int shard = std::hash<std::thread::id>{}(threadId) % kShards;
+    std::lock_guard<std::mutex> lock(_registrations[shard].second);
 
-        plf::colony<ThreadRegistration>& coll = _registrations[shard].first;
-        ThreadRegistration& r = *coll.emplace(threadId, monitor, now);
-        // The plf::colony is pointer-stable, thus we can use the pointer until deleted.
-        return &r;
+    plf::colony<ThreadRegistration>& coll = _registrations[shard].first;
+    auto it = coll.emplace(threadId, monitor, now);
+    ThreadRegistration& r = *it;
+
+    // While we are under lock, use it to GC few elements...
+    auto workIt = it;
+    ++workIt;
+    for (int i = 0; i < 5 && workIt != coll.end(); ++i) {
+        if (_maybeGarbageCollectRecord(coll, workIt)) { break; }
+        ++workIt;  // Was not erased.
     }
+    // The plf::colony is pointer-stable, thus we can use the pointer until deleted.
+    return &r;
 }
 
 uint32_t ThreadMonitorCentralRepository::threadCount() const {
@@ -65,18 +67,12 @@ void ThreadMonitorCentralRepository::runMonitorCycle() {
         std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(_registrations[shard].second));
         for (auto it = _registrations[shard].first.begin(); it != _registrations[shard].first.end();) {
             // If the item is deleted garbage collect it.
-            const auto lastSeenAlive = it->lastSeenAlive.load();
-            if (lastSeenAlive == std::chrono::system_clock::time_point::max()) {
-                {
-                    // Need to lock the deletion mutex to avoid deleting the element while
-                    // its destructor is holding the mutex.
-                    std::lock_guard<std::mutex> elementLock(it->monitorDeletionMutex);
-                    assert(it->monitor == nullptr);
-                }
-                it = _registrations[shard].first.erase(it);
-                continue;
+            const bool wasErased = _maybeGarbageCollectRecord(_registrations[shard].first, it);
+            if (wasErased) {
+                continue;  // Do not ++it, it was updated by GC.
             }
 
+            const auto lastSeenAlive = it->lastSeenAlive.load();
             // The 'methodStart' is slightly stale but it's not important.
             if (methodStart - lastSeenAlive > _threadTimeout.load()) {
                 // Check the actual thread structure to be sure.
@@ -105,6 +101,24 @@ void ThreadMonitorCentralRepository::runMonitorCycle() {
         std::cerr << "Frozen thread:" << std::endl;
         details::ThreadMonitorBase::printHistory(frozenThreadHistory);
     }
+}
+
+bool ThreadMonitorCentralRepository::_maybeGarbageCollectRecord(
+    plf::colony<ThreadRegistration>& collection,
+    plf::colony<ThreadRegistration>::iterator& it) {
+
+    const auto lastSeenAlive = it->lastSeenAlive.load();
+    if (lastSeenAlive == std::chrono::system_clock::time_point::max()) {
+        {
+            // Need to lock the deletion mutex to avoid deleting the element while
+            // its destructor is holding the mutex.
+            std::lock_guard<std::mutex> elementLock(it->monitorDeletionMutex);
+            assert(it->monitor == nullptr);
+        }
+        it = collection.erase(it);
+        return true;
+    }
+    return false;
 }
 
 } // namespace thread_monitor

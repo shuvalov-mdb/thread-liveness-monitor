@@ -99,7 +99,13 @@ protected:
     ~ThreadMonitorCentralRepository() = default;
 
 private:
-    static inline constexpr int kShards = 4;
+    // Lock contention hits harder with lower count.
+    static inline constexpr int kShards = 40;
+
+    // Returns 'was deleted'. If deleted, changes iterator in place.
+    // Precondition: must be invoked under lock.
+    bool _maybeGarbageCollectRecord(
+        plf::colony<ThreadRegistration>& collection, plf::colony<ThreadRegistration>::iterator& it);
 
     static ThreadMonitorCentralRepository* _staticInstance(bool withMonitorThread);
 
