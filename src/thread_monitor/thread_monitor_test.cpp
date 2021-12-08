@@ -44,6 +44,7 @@ TEST(ThreadMonitor, KeepsNCheckpoints) {
     const auto testStart = std::chrono::system_clock::now();
     std::this_thread::sleep_for(1ms);
     ThreadMonitor<10> monitor("test", 0);
+    std::this_thread::sleep_for(1ms);
     // Account for extra checkpoint added in constructor.
     const int expectedHistorySize =
         std::min<unsigned int>(monitor.depth(), test + 1);
@@ -73,6 +74,22 @@ TEST(ThreadMonitor, KeepsNCheckpoints) {
       ASSERT_LE(history[h].timestamp, testStop);
       lastTimestamp = history[h].timestamp;
     }
+  }
+}
+
+// When checkpoints are very close in time (tight loop) the
+// last one just overrides the previous.
+TEST(ThreadMonitor, MergeCheckpoints) {
+  while (true) {
+    ThreadMonitor<10> monitor("test", 0);
+    threadMonitorCheckpoint(1);
+    auto history = monitor.getHistory();
+    ASSERT_GE(history.size(), 1);
+    if (history.size() == 1) {
+      ASSERT_EQ(1, history[0].checkpointId);
+      break;
+    }
+    // Repeat to avoid flakiness.
   }
 }
 

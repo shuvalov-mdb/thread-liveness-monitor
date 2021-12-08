@@ -1,8 +1,36 @@
+/**
+MIT License
+
+Copyright (c) 2021 MongoDB, Inc; Author Andrew Shuvalov
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+#pragma once
+
 #include <atomic>
 #include <chrono>
 #include <ctime>
 #include <string>
+#include <thread>
 #include <vector>
+
+#include "thread_monitor/thread_monitor_central_repository.h"
 
 namespace thread_monitor {
 
@@ -22,6 +50,9 @@ public:
 #endif
   };
 
+  /**
+   * Represents one checkpoint visited by this monitor.
+   */
   struct HistoryRecord {
     uint32_t checkpointId;
     std::chrono::system_clock::time_point timestamp;
@@ -43,9 +74,19 @@ public:
 
   /**
    * Returns the snapshot of History, which is the vector of
-   * recently visited checkpoints.
+   * recently visited checkpoints. The count of checkpoints preserved
+   * in history is parameterized as HistoryDepth below. There is no
+   * performance penalty for keeping longer history, but the summary stack
+   * traces can become unnecessary cluttered.
    */
   History getHistory() const;
+
+  /**
+   * Returns the timestamp of the last checkpoint visited.
+   */
+  std::chrono::system_clock::time_point lastCheckpointTime() const;
+
+  static void printHistory(const History& history);
 
 protected:
   ThreadMonitorBase(std::string name, InternalHistoryRecord *historyPtr,
@@ -58,7 +99,6 @@ protected:
   ThreadMonitorBase(const ThreadMonitorBase &) = delete;
   ThreadMonitorBase &operator=(const ThreadMonitorBase &) = delete;
 
-protected:
   /**
    * Register a checkpoint with 'id' for this monitor, if enabled.
    * This is internal implementation to be accessed from
@@ -66,7 +106,11 @@ protected:
    */
   void checkpointInternalImpl(uint32_t id);
 
-  void writeCheckpointAtPosition(uint32_t index, uint32_t id);
+  void writeCheckpointAtPosition(uint32_t index, uint32_t id,
+                                 std::chrono::system_clock::time_point timestamp);
+
+  // We only update the central repository once in a while, for performance.
+  void maybeUpdateCentralRepository(std::chrono::system_clock::time_point timestamp);
 
 private:
   friend void ::thread_monitor::threadMonitorCheckpoint(uint32_t checkpointId);
@@ -79,6 +123,7 @@ private:
 
   const std::chrono::system_clock::time_point _creationTimestamp =
       std::chrono::system_clock::now();
+  const std::thread::id _threadId = std::this_thread::get_id();
 
   // Thread monitor is disabled if there is another instance up the stack.
   bool _enabled = false;
@@ -90,8 +135,10 @@ private:
   std::atomic<uint32_t> _headHistoryRecord = _historyDepth;
   std::atomic<uint32_t> _tailHistoryRecord = _historyDepth;
 
+  ThreadMonitorCentralRepository::ThreadRegistration *_registration;
+
 #ifndef NDEBUG
-  std::atomic<uint64_t> _globalSequence{0};
+  static std::atomic<uint64_t> _globalSequence;
 #endif
 };
 } // namespace details

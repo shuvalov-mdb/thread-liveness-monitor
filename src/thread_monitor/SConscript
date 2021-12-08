@@ -17,13 +17,21 @@ env.Append( LIBS = common_libs )
 
 test_env.Append( LIBS = test_libs )
 test_env.Append( LIBS = common_libs )
+test_env.Append( CCFLAGS = '-g' )
 
 opt_env.Append( CCFLAGS = '-DNDEBUG' )
 
-env.Library(target='thread_monitor', source=['thread_monitor.cpp'])
+env.Library(target='thread_monitor', 
+            source=['thread_monitor.cpp', 'thread_monitor_central_repository.cpp'])
 
 test_env.Program(
     source=['thread_monitor_test.cpp'], 
+    LIBS=['thread_monitor'] + test_libs + common_libs,
+    LIBPATH=['.', '/usr/gtest']
+)
+
+test_env.Program(
+    source=['thread_monitor_central_repository_test.cpp'], 
     LIBS=['thread_monitor'] + test_libs + common_libs,
     LIBPATH=['.', '/usr/gtest']
 )

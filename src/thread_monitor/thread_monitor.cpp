@@ -1,11 +1,20 @@
 #include "thread_monitor/thread_monitor.h"
 
 #include <cassert>
+#include <iomanip>
 #include <iostream>
 
 namespace thread_monitor {
 
 namespace details {
+
+// If checkpoints are this close, just override the last one to avoid saving
+// too many very close checkpoints.
+static constexpr auto kHistoryResolution = std::chrono::microseconds{10};
+
+#ifndef NDEBUG
+std::atomic<uint64_t> ThreadMonitorBase::_globalSequence;
+#endif
 
 namespace {
 thread_local ThreadMonitorBase *threadLocalPtr = nullptr;
@@ -18,7 +27,13 @@ ThreadMonitorBase::ThreadMonitorBase(std::string name,
     : _name(std::move(name)), _historyPtr(historyPtr),
       _historyDepth(historyDepth) {
   _maybeRegisterThreadLocal();
+  if (!_enabled) {
+    return;
+  }
   checkpointInternalImpl(firstCheckpointId);
+  _registration = ThreadMonitorCentralRepository::instance()->registerThread(
+      _threadId, this,
+      _creationTimestamp + _historyPtr[0].durationFromCreation.load());
 }
 
 ThreadMonitorBase::~ThreadMonitorBase() {
@@ -26,6 +41,11 @@ ThreadMonitorBase::~ThreadMonitorBase() {
     return;
   }
   threadLocalPtr = nullptr;
+
+  std::lock_guard<std::mutex> lock(_registration->monitorDeletionMutex);
+  // The registration garbage collector will pick up the deleted registration.
+  _registration->monitor = nullptr;
+  _registration->lastSeenAlive = std::chrono::system_clock::time_point::max();
 }
 
 bool ThreadMonitorBase::isEnabled() const { return _enabled; }
@@ -60,6 +80,18 @@ void ThreadMonitorBase::checkpointInternalImpl(uint32_t id) {
     _tailHistoryRecord = 0; // Inclusive.
     return;
   }
+
+  const auto now = std::chrono::system_clock::now();
+  if ((now - _creationTimestamp) -
+          _historyPtr[_tailHistoryRecord.load()].durationFromCreation.load() <
+      kHistoryResolution) {
+    // We do not pollute the history with very close values. Instead, replace
+    // the last one.
+    writeCheckpointAtPosition(_tailHistoryRecord.load(), id, now);
+    maybeUpdateCentralRepository(now);
+    return;
+  }
+
   // The circular buffer write is not atomic. 1. Advance the head if needed.
   unsigned int nextIndex;
   const bool tailCaughtHead =
@@ -79,18 +111,20 @@ void ThreadMonitorBase::checkpointInternalImpl(uint32_t id) {
     }
   }
   // 2. Write next record without advancing the tail.
-  writeCheckpointAtPosition(nextIndex, id);
+  writeCheckpointAtPosition(nextIndex, id, now);
   // 3. Advance the tail to point to the new record.
   _tailHistoryRecord = nextIndex;
+  maybeUpdateCentralRepository(now);
 }
 
-void ThreadMonitorBase::writeCheckpointAtPosition(uint32_t index, uint32_t id) {
+void ThreadMonitorBase::writeCheckpointAtPosition(
+    uint32_t index, uint32_t id,
+    std::chrono::system_clock::time_point timestamp) {
   assert(index >= 0);
   assert(index < _historyDepth);
   InternalHistoryRecord &r = *(_historyPtr + index);
   r.checkpointId = id;
-  const auto now = std::chrono::system_clock::now();
-  r.durationFromCreation = now - _creationTimestamp;
+  r.durationFromCreation = timestamp - _creationTimestamp;
 #ifndef NDEBUG
   r.sequence = ++_globalSequence; // Only in debug mode, very expensive.
 #endif
@@ -101,7 +135,9 @@ ThreadMonitorBase::History ThreadMonitorBase::getHistory() const {
   // This code is not atomic. It is only guaranteed that the thread
   // monitor is protected from deletion.
   // TODO: add external deletion mutex.
-  for (auto index = _headHistoryRecord.load();;) {
+  const auto initialHead = _headHistoryRecord.load();
+  bool atFirstElement = true;
+  for (auto index = initialHead;;) {
     HistoryRecord h;
     InternalHistoryRecord &r = *(_historyPtr + index);
     h.checkpointId = r.checkpointId;
@@ -109,7 +145,14 @@ ThreadMonitorBase::History ThreadMonitorBase::getHistory() const {
 #ifndef NDEBUG
     h.sequence = r.sequence;
 #endif
-    history.push_back(std::move(h));
+    // Subtle race: if head moved while we processed the 1st element
+    // we should not insert it. We obviously assume that no more than
+    // 1 checkpoint could be added while we are in this method, otherwise
+    // it's improper use of this library.
+    if (!atFirstElement || initialHead == _headHistoryRecord.load()) {
+      history.push_back(std::move(h));
+    }
+    atFirstElement = false;
     // Tail is inclusive.
     if (index == _tailHistoryRecord.load()) {
       break;
@@ -119,6 +162,32 @@ ThreadMonitorBase::History ThreadMonitorBase::getHistory() const {
     }
   }
   return history;
+}
+
+std::chrono::system_clock::time_point ThreadMonitorBase::lastCheckpointTime() const {
+  while (true) {
+    const auto initialTail = _tailHistoryRecord.load();
+    const auto timestamp = _creationTimestamp + _historyPtr[initialTail].durationFromCreation.load();
+    // Subtle race - is the tail still there?
+    if (initialTail == _tailHistoryRecord.load()) {
+      return timestamp;
+    }
+  }
+}
+
+void ThreadMonitorBase::maybeUpdateCentralRepository(
+    std::chrono::system_clock::time_point timestamp) {}
+
+void ThreadMonitorBase::printHistory(const ThreadMonitorBase::History& history) {
+  for (const auto& h : history) {
+    auto in_time_t = std::chrono::system_clock::to_time_t(h.timestamp);
+    std::cerr << "Checkpoint: " << h.checkpointId << " at: "
+      << std::put_time(std::localtime(&in_time_t), "%Y-%m-%d %X");
+#ifndef NDEBUG
+    std::cerr << h.sequence;
+#endif
+    std::cerr << std::endl;
+  }
 }
 
 } // namespace details
