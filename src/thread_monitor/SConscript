@@ -5,10 +5,14 @@ Import('env')
 env = env.Clone()
 env.Append( CPPPATH=['..'] )
 env.Append( LIBPATH=['.', 'build/thread_monitor'] )
-env.Append( CCFLAGS = '-O2' )
+env.Append( CCFLAGS = ['-O3', '-Ofast'] )
+
+if GetOption('debug_build'):
+    env.Append( CCFLAGS = '-g' )
+else:
+    env.Append( CCFLAGS = ['-DNDEBUG', '-DBENCHMARK_ENABLE_LTO=true'] )
 
 test_env = env.Clone()
-opt_env = env.Clone()
 
 common_libs = ['pthread']
 test_libs = ['gtest_main', 'gtest']
@@ -17,9 +21,6 @@ env.Append( LIBS = common_libs )
 
 test_env.Append( LIBS = test_libs )
 test_env.Append( LIBS = common_libs )
-test_env.Append( CCFLAGS = '-g' )
-
-opt_env.Append( CCFLAGS = '-DNDEBUG' )
 
 env.Library(target='thread_monitor', 
             source=['thread_monitor.cpp', 'thread_monitor_central_repository.cpp'])
@@ -36,8 +37,14 @@ test_env.Program(
     LIBPATH=['.', '/usr/gtest']
 )
 
-opt_env.Program(
+env.Program(
     source=['time_support_bm.cpp'],
+    LIBS=['thread_monitor', 'benchmark'] + common_libs,
+    LIBPATH=['.']
+)
+
+env.Program(
+    source=['thread_monitor_bm.cpp'],
     LIBS=['thread_monitor', 'benchmark'] + common_libs,
     LIBPATH=['.']
 )
