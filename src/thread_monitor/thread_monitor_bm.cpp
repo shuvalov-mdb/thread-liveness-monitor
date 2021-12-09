@@ -8,13 +8,13 @@ namespace thread_monitor {
 namespace {
 
 static void BM_ConcurrentCreateDelete(benchmark::State& state) {
-    ThreadMonitorCentralRepository::instance()->runMonitorCycle();
     for (auto _ : state) {
         ThreadMonitor<> monitor("test", 1);
     }
     ThreadMonitorCentralRepository::instance()->runMonitorCycle();
 }
 
+BENCHMARK(BM_ConcurrentCreateDelete)->Threads(1)->MinTime(1);
 BENCHMARK(BM_ConcurrentCreateDelete)->Threads(1)->MinTime(5);
 BENCHMARK(BM_ConcurrentCreateDelete)->Threads(4)->MinTime(5);
 BENCHMARK(BM_ConcurrentCreateDelete)->Threads(8)->MinTime(5);

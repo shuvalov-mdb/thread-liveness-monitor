@@ -29,6 +29,11 @@ public:
 #else
         std::chrono::milliseconds{1};  // Debug can have performance penalty.
 #endif
+    // The interval to spin the monitor when there is no much activity.
+    // Essentially, this is idle machine overhead. With ~100 instrumented threads
+    // the monitor cycle takes about 1 microsec.
+    // The monitor is using adaptive intervals to spin more often when busy.
+    static inline constexpr auto kIdleMonitorCycleInterval = std::chrono::milliseconds{500};
 
 #pragma pack(push, 1)
     struct ThreadRegistration {

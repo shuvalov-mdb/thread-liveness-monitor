@@ -36,7 +36,7 @@ ThreadMonitorCentralRepository::ThreadMonitorCentralRepository(bool withMonitorT
                     std::this_thread::sleep_for(std::chrono::milliseconds{100});
                     continue;
                 }
-                std::this_thread::sleep_for(std::chrono::milliseconds{500});
+                std::this_thread::sleep_for(kIdleMonitorCycleInterval);
             }
         });
         _monitorThread = std::unique_ptr<std::thread>(t);
