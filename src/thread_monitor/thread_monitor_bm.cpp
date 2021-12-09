@@ -22,6 +22,7 @@ BENCHMARK(BM_ConcurrentCreateDelete)->Threads(16)->MinTime(5);
 BENCHMARK(BM_ConcurrentCreateDelete)->Threads(32)->MinTime(5);
 BENCHMARK(BM_ConcurrentCreateDelete)->Threads(64)->MinTime(5);
 BENCHMARK(BM_ConcurrentCreateDelete)->Threads(128)->MinTime(5);
+BENCHMARK(BM_ConcurrentCreateDelete)->Threads(1024)->MinTime(5);
 
 static void BM_Checkpoint(benchmark::State& state) {
     ThreadMonitorCentralRepository::instance()->runMonitorCycle();
@@ -38,6 +39,7 @@ BENCHMARK(BM_Checkpoint)->Threads(16)->MinTime(1);
 BENCHMARK(BM_Checkpoint)->Threads(32)->MinTime(1);
 BENCHMARK(BM_Checkpoint)->Threads(64)->MinTime(1);
 BENCHMARK(BM_Checkpoint)->Threads(128)->MinTime(1);
+BENCHMARK(BM_Checkpoint)->Threads(1024)->MinTime(1);
 
 static void BM_GCAndMonitor(benchmark::State& state) {
     ThreadMonitorCentralRepository::instance()->runMonitorCycle();

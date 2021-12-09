@@ -68,7 +68,7 @@ public:
 
     bool isEnabled() const;
 
-    const std::string& name() const;
+    const char* name() const;
 
     unsigned int depth() const;
 
@@ -86,10 +86,11 @@ public:
      */
     std::chrono::system_clock::time_point lastCheckpointTime() const;
 
+    void printHistory() const;
     static void printHistory(const History& history);
 
 protected:
-    ThreadMonitorBase(std::string name,
+    ThreadMonitorBase(const char* const name,
                       InternalHistoryRecord* historyPtr,
                       uint32_t historyDepth,
                       uint32_t firstCheckpointId);
@@ -120,7 +121,8 @@ private:
 
     void _maybeRegisterThreadLocal();
 
-    const std::string _name;
+    // Thread name, the pointer should remain valid for the lifetime.
+    const char* const _name;
     InternalHistoryRecord* const _historyPtr;
     const uint32_t _historyDepth;
 
@@ -153,7 +155,12 @@ private:
 template <uint32_t HistoryDepth = 10>
 class ThreadMonitor : public details::ThreadMonitorBase {
 public:
-    ThreadMonitor(std::string name, uint32_t firstCheckpointId);
+    /**
+     * @param name Thread name, the pointer should remain valid for the lifetime.
+     * @param firstCheckpointId the checkpoint id for the registration checkpoint.
+     */
+    ThreadMonitor(const char* const name,
+                  uint32_t firstCheckpointId);
 
 private:
     // The actual history circular list is stored on stack.
@@ -161,7 +168,8 @@ private:
 };
 
 template <uint32_t HistoryDepth>
-ThreadMonitor<HistoryDepth>::ThreadMonitor(std::string name, uint32_t firstCheckpointId)
-    : ThreadMonitorBase(std::move(name), _history, HistoryDepth, firstCheckpointId) {}
+ThreadMonitor<HistoryDepth>::ThreadMonitor(const char* const name,
+                                           uint32_t firstCheckpointId)
+    : ThreadMonitorBase(name, _history, HistoryDepth, firstCheckpointId) {}
 
 }  // namespace thread_monitor

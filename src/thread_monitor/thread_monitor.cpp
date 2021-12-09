@@ -20,11 +20,11 @@ namespace {
 thread_local ThreadMonitorBase* threadLocalPtr = nullptr;
 }  // namespace
 
-ThreadMonitorBase::ThreadMonitorBase(std::string name,
+ThreadMonitorBase::ThreadMonitorBase(const char* const name,
                                      InternalHistoryRecord* historyPtr,
                                      uint32_t historyDepth,
                                      uint32_t firstCheckpointId)
-    : _name(std::move(name)), _historyPtr(historyPtr), _historyDepth(historyDepth) {
+    : _name(name ? name : "default"), _historyPtr(historyPtr), _historyDepth(historyDepth) {
     _maybeRegisterThreadLocal();
     if (!_enabled) {
         return;
@@ -52,7 +52,7 @@ bool ThreadMonitorBase::isEnabled() const {
     return _enabled;
 }
 
-const std::string& ThreadMonitorBase::name() const {
+const char* ThreadMonitorBase::name() const {
     return _name;
 }
 
@@ -186,6 +186,11 @@ void ThreadMonitorBase::maybeUpdateCentralRepository(
     }
     _lastCentralRepoUpdateTimestamp = timestamp;
     _registration->lastSeenAlive = timestamp;
+}
+
+void ThreadMonitorBase::printHistory() const {
+    std::cerr << "Thread: " << _name << " id: " << _threadId << std::endl;
+    printHistory(getHistory());
 }
 
 void ThreadMonitorBase::printHistory(const ThreadMonitorBase::History& history) {

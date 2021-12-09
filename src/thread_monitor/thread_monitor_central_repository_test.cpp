@@ -49,6 +49,45 @@ TEST(CentralRepository, ThreadTimeout) {
               ThreadMonitorCentralRepository::instance()->getLivenessErrorConditionDetectedCount());
 }
 
+TEST(CentralRepository, ThreadTimeoutMultipleThreads) {
+    const auto frozenCount =
+        ThreadMonitorCentralRepository::instance()->getLivenessErrorConditionDetectedCount();
+    ThreadMonitorCentralRepository::instance()->setThreadTimeout(std::chrono::milliseconds{1});
+    std::atomic<bool> livenessConditionDetected = false;
+    ThreadMonitorCentralRepository::instance()->setLivenessErrorConditionDetectedCallback(
+        [&] { livenessConditionDetected = true; });
+
+    std::vector<std::thread> threads;
+    std::atomic<bool> terminate{ false };
+    for (int i = 0; i < 5; ++i) {
+        threads.emplace_back([&] {
+            ThreadMonitor<> monitor("some thread", 5);
+            for (int j = 0; j < 5; ++j) {
+                threadMonitorCheckpoint(i + j);
+                std::this_thread::sleep_for(std::chrono::milliseconds{2});
+            }
+            while (!terminate.load()) {
+                std::this_thread::sleep_for(std::chrono::milliseconds{2});
+            }
+        });
+    }
+
+    ThreadMonitor<> monitor("main test thread", 1);
+    std::this_thread::sleep_for(std::chrono::milliseconds{2});
+    while (!livenessConditionDetected) {
+        threadMonitorCheckpoint(2);
+        std::this_thread::sleep_for(std::chrono::milliseconds{10});
+        ThreadMonitorCentralRepository::instance()->runMonitorCycle();
+    }
+    ASSERT_EQ(frozenCount + 1,
+              ThreadMonitorCentralRepository::instance()->getLivenessErrorConditionDetectedCount());
+
+    terminate = true;
+    for (auto& t : threads) {
+        t.join();
+    }
+}
+
 // Tests that an instrumented thread updates its liveness timestamp
 // in the central repository.
 TEST(CentralRepository, CentralRepositoryUpdates) {

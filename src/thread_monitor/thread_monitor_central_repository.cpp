@@ -124,6 +124,7 @@ unsigned int ThreadMonitorCentralRepository::runMonitorCycle() {
     ThreadRegistration* frozenThread = nullptr;
     details::ThreadMonitorBase::History frozenThreadHistory;
     std::thread::id frozenThreadId;
+    std::string frozenThreadName;
     unsigned int garbageCollected = 0;
 
     for (int shard = 0; shard < kShards; ++shard) {
@@ -150,6 +151,7 @@ unsigned int ThreadMonitorCentralRepository::runMonitorCycle() {
                             frozenThread = &(*it);
                             frozenThreadHistory = it->monitor->getHistory();
                             frozenThreadId = it->threadId;
+                            frozenThreadName = it->monitor->name();
                             break;
                         }
                     }
@@ -166,7 +168,7 @@ unsigned int ThreadMonitorCentralRepository::runMonitorCycle() {
     if (frozenThread != nullptr && methodStart - _lastTimeOfFaultAction > _threadTimeout.load()) {
         _lastTimeOfFaultAction = methodStart;
         _frozenConditionsDetected.fetch_add(1);
-        std::cerr << "Frozen thread: " << frozenThreadId << std::endl;
+        std::cerr << "Frozen thread: " << frozenThreadName << " id: " << frozenThreadId << std::endl;
         details::ThreadMonitorBase::printHistory(frozenThreadHistory);
         _frozenThreadAction();
     }
@@ -195,17 +197,17 @@ void ThreadMonitorCentralRepository::_frozenThreadAction() {
                 std::lock_guard<std::mutex> elementLock(it->monitorDeletionMutex);
                 if (it->monitor) {
                     threadHistory = it->monitor->getHistory();
+                    if (threadHistory.empty()) {
+                        continue;
+                    }
                     threadId = it->threadId;
+                    lastSeenAlive = threadHistory[threadHistory.size() - 1].timestamp;
+                    if (shardStart - lastSeenAlive < kStaleThreadThreshold) {
+                        continue;
+                    }
+                    it->monitor->printHistory();
                 }
             }
-            lastSeenAlive = threadHistory[threadHistory.size() - 1].timestamp;
-            // A race is possible that the thread was unregistered.
-            if (lastSeenAlive == std::chrono::system_clock::time_point::max() ||
-                threadHistory.empty() || shardStart - lastSeenAlive < kStaleThreadThreshold) {
-                continue;
-            }
-            std::cerr << "Thread: " << threadId << std::endl;
-            details::ThreadMonitorBase::printHistory(threadHistory);
         }
     }
 
