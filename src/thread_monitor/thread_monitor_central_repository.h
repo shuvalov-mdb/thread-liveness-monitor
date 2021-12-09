@@ -30,24 +30,26 @@ public:
         std::chrono::milliseconds{1};  // Debug can have performance penalty.
 #endif
 
+#pragma pack(push, 1)
     struct ThreadRegistration {
-        std::thread::id threadId;
-        // The timestamp updated by the thread itself to indicate
-        // it is alive. For efficiency, this timestamp is not updated
-        // on every checkpoint, but only every few seconds.
-        std::atomic<std::chrono::system_clock::time_point> lastSeenAlive;
         // Guards 'monitor' pointer protecting from deletion.
         // This mutex is not used by checkpoints, thus the lock
         // contention should be extremely low.
         std::mutex monitorDeletionMutex;
+        // The timestamp updated by the thread itself to indicate
+        // it is alive. For efficiency, this timestamp is not updated
+        // on every checkpoint, but only every few seconds.
+        std::atomic<std::chrono::system_clock::time_point> lastSeenAlive;
         // In destructor, the monitor clears this pointer.
         details::ThreadMonitorBase* monitor;
+        std::thread::id threadId;
 
         ThreadRegistration(std::thread::id threadId,
                            details::ThreadMonitorBase* monitor,
                            std::chrono::system_clock::time_point now)
             : threadId(threadId), lastSeenAlive(now), monitor(monitor) {}
     };
+#pragma pack(pop)
 
     struct ThreadLivenessState {
         std::thread::id threadId;
@@ -138,8 +140,8 @@ protected:
 private:
     // Lock contention hits harder with lower count.
     // In the benchmarks, 30 shards is about 30% faster than 20 shards, and
-    // is already in the saturation zone.
-    static inline constexpr int kShards = 30;
+    // 40 is already in the saturation zone.
+    static inline constexpr int kShards = 36;
 
     // Returns 'was deleted'. If deleted, changes iterator in place.
     // Precondition: must be invoked under lock.
@@ -163,7 +165,10 @@ private:
     std::atomic<bool> _terminating{false};
     std::unique_ptr<std::thread> _monitorThread;
 
-    using LockableColony = std::pair<plf::colony<ThreadRegistration>, std::mutex>;
+    // Separates mostly constants above from frequently changind data below.
+    char __dummyCacheLinePadding[64];
+
+    using LockableColony = std::tuple<plf::colony<ThreadRegistration>, char[16], std::mutex, char[64]>;
     // Keeps all thread registrations in the pointer-stable, continuous
     // collection. A non-locked shard is picked at registration time. Each shard
     // has its own mutex.

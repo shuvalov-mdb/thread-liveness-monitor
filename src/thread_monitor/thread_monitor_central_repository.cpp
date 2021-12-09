@@ -23,16 +23,20 @@ ThreadMonitorCentralRepository::ThreadMonitorCentralRepository(bool withMonitorT
                 // about 1 microsec, so not much over head to run every few millis.
                 const auto garbageCollected = runMonitorCycle();
                 // Decides how long to sleep depending on GC count.
-                if (garbageCollected > 1000) {
+                if (garbageCollected > 500) {
                     // Heavy GC, repeat soon.
-                    std::this_thread::sleep_for(std::chrono::milliseconds{1});
+                    std::this_thread::sleep_for(std::chrono::microseconds{200});
                     continue;
                 }
                 if (garbageCollected > 100) {
-                    std::this_thread::sleep_for(std::chrono::milliseconds{10});
+                    std::this_thread::sleep_for(std::chrono::milliseconds{5});
                     continue;
                 }
-                std::this_thread::sleep_for(std::chrono::milliseconds{100});
+                if (garbageCollected > 10) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds{100});
+                    continue;
+                }
+                std::this_thread::sleep_for(std::chrono::milliseconds{500});
             }
         });
         _monitorThread = std::unique_ptr<std::thread>(t);
@@ -78,9 +82,9 @@ ThreadMonitorCentralRepository::ThreadRegistration* ThreadMonitorCentralReposito
     details::ThreadMonitorBase* monitor,
     std::chrono::system_clock::time_point now) {
     const int shard = std::hash<std::thread::id>{}(threadId) % kShards;
-    std::lock_guard<std::mutex> lock(_registrations[shard].second);
+    std::lock_guard<std::mutex> lock(std::get<2>(_registrations[shard]));
 
-    plf::colony<ThreadRegistration>& coll = _registrations[shard].first;
+    plf::colony<ThreadRegistration>& coll = std::get<0>(_registrations[shard]);
     auto it = coll.emplace(threadId, monitor, now);
     ThreadRegistration& r = *it;
     return &r;
@@ -89,8 +93,8 @@ ThreadMonitorCentralRepository::ThreadRegistration* ThreadMonitorCentralReposito
 uint32_t ThreadMonitorCentralRepository::threadCount() const {
     uint32_t size = 0;
     for (int shard = 0; shard < kShards; ++shard) {
-        std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(_registrations[shard].second));
-        size += _registrations[shard].first.size();
+        std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(std::get<2>(_registrations[shard])));
+        size += std::get<0>(_registrations[shard]).size();
     }
     return size;
 }
@@ -99,8 +103,8 @@ std::vector<ThreadMonitorCentralRepository::ThreadLivenessState>
 ThreadMonitorCentralRepository::getAllThreadLivenessStates() const {
     std::vector<ThreadLivenessState> states;
     for (int shard = 0; shard < kShards; ++shard) {
-        std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(_registrations[shard].second));
-        for (const auto& r : _registrations[shard].first) {
+        std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(std::get<2>(_registrations[shard])));
+        for (const auto& r : std::get<0>(_registrations[shard])) {
             ThreadLivenessState state;
             state.lastSeenAliveTimestamp = r.lastSeenAlive.load();
             state.threadId = r.threadId;
@@ -116,25 +120,26 @@ uint32_t ThreadMonitorCentralRepository::getLivenessErrorConditionDetectedCount(
 
 unsigned int ThreadMonitorCentralRepository::runMonitorCycle() {
     const auto methodStart = std::chrono::system_clock::now();
+    const auto oldestAliveTimestampThreshold = methodStart - _threadTimeout.load();
     ThreadRegistration* frozenThread = nullptr;
     details::ThreadMonitorBase::History frozenThreadHistory;
     std::thread::id frozenThreadId;
     unsigned int garbageCollected = 0;
 
     for (int shard = 0; shard < kShards; ++shard) {
-        std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(_registrations[shard].second));
-        for (auto it = _registrations[shard].first.begin();
-             it != _registrations[shard].first.end();) {
+        LockableColony& registration = _registrations[shard];
+        std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(std::get<2>(registration)));
+        for (auto it = std::get<0>(registration).begin();
+             it != std::get<0>(registration).end();) {
             // If the item is deleted garbage collect it.
-            const bool wasErased = _maybeGarbageCollectRecord(_registrations[shard].first, it);
+            const bool wasErased = _maybeGarbageCollectRecord(std::get<0>(registration), it);
             if (wasErased) {
                 ++garbageCollected;
                 continue;  // Do not ++it, it was updated by GC.
             }
 
-            const auto lastSeenAlive = it->lastSeenAlive.load();
             // The 'methodStart' is slightly stale but it's not important.
-            if (methodStart - lastSeenAlive > _threadTimeout.load()) {
+            if (it->lastSeenAlive.load() < oldestAliveTimestampThreshold) {
                 // Check the actual thread structure to be sure.
                 {
                     // Any access to it->monitor must be guarded.
@@ -174,8 +179,8 @@ void ThreadMonitorCentralRepository::_frozenThreadAction() {
     std::cerr << "All stale threads:" << std::endl;
     for (int shard = 0; shard < kShards; ++shard) {
         const auto shardStart = std::chrono::system_clock::now();
-        std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(_registrations[shard].second));
-        for (auto it = _registrations[shard].first.begin(); it != _registrations[shard].first.end();
+        std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(std::get<2>(_registrations[shard])));
+        for (auto it = std::get<0>(_registrations[shard]).begin(); it != std::get<0>(_registrations[shard]).end();
              ++it) {
             auto lastSeenAlive = it->lastSeenAlive.load();
             if (lastSeenAlive == std::chrono::system_clock::time_point::max() ||
@@ -209,11 +214,10 @@ void ThreadMonitorCentralRepository::_frozenThreadAction() {
     }
 }
 
-bool ThreadMonitorCentralRepository::_maybeGarbageCollectRecord(
+inline bool ThreadMonitorCentralRepository::_maybeGarbageCollectRecord(
     plf::colony<ThreadRegistration>& collection, plf::colony<ThreadRegistration>::iterator& it) {
 
-    const auto lastSeenAlive = it->lastSeenAlive.load();
-    if (lastSeenAlive == std::chrono::system_clock::time_point::max()) {
+    if (it->lastSeenAlive.load() == std::chrono::system_clock::time_point::max()) {
         {
             // Need to lock the deletion mutex to avoid deleting the element while
             // its destructor is holding the mutex.

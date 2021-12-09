@@ -30,7 +30,7 @@ ThreadMonitorBase::ThreadMonitorBase(std::string name,
         return;
     }
     checkpointInternalImpl(firstCheckpointId);
-    auto* centralRepo = ThreadMonitorCentralRepository::instance();
+    auto* const centralRepo = ThreadMonitorCentralRepository::instance();
     _registration = centralRepo->registerThread(
         _threadId, this, _creationTimestamp + _historyPtr[0].durationFromCreation.load());
     _centralRepoUpdateInterval = centralRepo->reportingInterval();

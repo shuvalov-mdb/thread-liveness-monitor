@@ -15,13 +15,13 @@ static void BM_ConcurrentCreateDelete(benchmark::State& state) {
     ThreadMonitorCentralRepository::instance()->runMonitorCycle();
 }
 
-BENCHMARK(BM_ConcurrentCreateDelete)->Threads(1)->MinTime(2);
-BENCHMARK(BM_ConcurrentCreateDelete)->Threads(4)->MinTime(2);
-BENCHMARK(BM_ConcurrentCreateDelete)->Threads(8)->MinTime(2);
-BENCHMARK(BM_ConcurrentCreateDelete)->Threads(16)->MinTime(2);
-BENCHMARK(BM_ConcurrentCreateDelete)->Threads(32)->MinTime(2);
-BENCHMARK(BM_ConcurrentCreateDelete)->Threads(64)->MinTime(2);
-BENCHMARK(BM_ConcurrentCreateDelete)->Threads(128)->MinTime(2);
+BENCHMARK(BM_ConcurrentCreateDelete)->Threads(1)->MinTime(5);
+BENCHMARK(BM_ConcurrentCreateDelete)->Threads(4)->MinTime(5);
+BENCHMARK(BM_ConcurrentCreateDelete)->Threads(8)->MinTime(5);
+BENCHMARK(BM_ConcurrentCreateDelete)->Threads(16)->MinTime(5);
+BENCHMARK(BM_ConcurrentCreateDelete)->Threads(32)->MinTime(5);
+BENCHMARK(BM_ConcurrentCreateDelete)->Threads(64)->MinTime(5);
+BENCHMARK(BM_ConcurrentCreateDelete)->Threads(128)->MinTime(5);
 
 static void BM_Checkpoint(benchmark::State& state) {
     ThreadMonitorCentralRepository::instance()->runMonitorCycle();
