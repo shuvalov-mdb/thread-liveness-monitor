@@ -37,6 +37,9 @@ namespace thread_monitor {
 void threadMonitorCheckpoint(uint32_t checkpointId);
 
 namespace details {
+
+/** Documentation: https://github.com/shuvalov-mdb/thread-liveness-monitor
+ */
 class ThreadMonitorBase {
 public:
     struct InternalHistoryRecord {
@@ -152,6 +155,17 @@ private:
 };
 }  // namespace details
 
+/**
+ * RAII class ThreadMonitor that registers (in the constructor) and
+ * deregisters (in the destructor) the current thread in the central repository
+ * and enables the instrumentation by placing the calls to 
+ * `threadMonitorCheckpoint()` anywhere in the code.
+ * 
+ * Important: ThreadMonitor is designed to be used as automatic instance within
+ * a method scope. It must be deleted by the same thread that created it, otherwise
+ * it will not deregister the thread local variable pointing to it and will
+ * corrupt memory.
+ */
 template <uint32_t HistoryDepth = 10>
 class ThreadMonitor : public details::ThreadMonitorBase {
 public:

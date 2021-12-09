@@ -1,4 +1,6 @@
 // Author: Andrew Shuvalov
+//
+// Documentation: https://github.com/shuvalov-mdb/thread-liveness-monitor
 
 #pragma once
 
