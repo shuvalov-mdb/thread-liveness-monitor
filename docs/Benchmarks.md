@@ -65,9 +65,10 @@ Benchmark with *clang++* on *Xeon Platinum 8124M CPU @ 3GHz* with CPU scaling of
     BM_Checkpoint/min_time:1.000/threads:128                       1 ns         40 ns   36180096
     BM_Checkpoint/min_time:1.000/threads:1024                      0 ns         38 ns   34639872
 
-- Adjust the results above to the `std::chrono::system_clock::now()` overhead, which is optimized
-  for multi-threaded usage:
+   Adjust the results above to the `std::chrono::system_clock::now()` overhead, which is optimized
+   for multi-threaded usage:
 
+    ``` 
     BM_system_clock/threads:1            20 ns         20 ns   35493587
     BM_system_clock/threads:4             5 ns         20 ns   29908076
     BM_system_clock/threads:8             3 ns         20 ns   27748576
@@ -75,6 +76,7 @@ Benchmark with *clang++* on *Xeon Platinum 8124M CPU @ 3GHz* with CPU scaling of
     BM_system_clock/threads:32            1 ns         26 ns   26956000
     BM_system_clock/threads:64            0 ns         26 ns   28653248
     BM_system_clock/threads:1024          0 ns         24 ns   27296768
+    ```
 
 -------
 
