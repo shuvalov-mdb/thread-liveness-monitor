@@ -35,6 +35,8 @@ My results run at *AWS server with Intel(R) Xeon(R) Platinum 8275CL CPU @ 3.00GH
     BM_GCAndMonitor/min_time:1.000/threads:512                   528 ns      18631 ns      76288
     BM_GCAndMonitor/min_time:1.000/threads:1024                  934 ns      21214 ns      65536
 
+- CPU scaling setting is not accessible but is most likely on, thus this result is more applicable
+  to the actual production setup rather than ideal CPU-optimized server.
 
 Indeed, the checkpoint overhead running with 1024 threads dropped below 1 nanosecond **:-)**
 
@@ -63,15 +65,59 @@ Benchmark with *clang++* on *Xeon Platinum 8124M CPU @ 3GHz* with CPU scaling of
     BM_Checkpoint/min_time:1.000/threads:128                       1 ns         40 ns   36180096
     BM_Checkpoint/min_time:1.000/threads:1024                      0 ns         38 ns   34639872
 
+- Adjust the results above to the `std::chrono::system_clock::now()` overhead, which is optimized
+  for multi-threaded usage:
+
+    BM_system_clock/threads:1            20 ns         20 ns   35493587
+    BM_system_clock/threads:4             5 ns         20 ns   29908076
+    BM_system_clock/threads:8             3 ns         20 ns   27748576
+    BM_system_clock/threads:16            1 ns         24 ns   31931984
+    BM_system_clock/threads:32            1 ns         26 ns   26956000
+    BM_system_clock/threads:64            0 ns         26 ns   28653248
+    BM_system_clock/threads:1024          0 ns         24 ns   27296768
+
 -------
 
 ## Performance related optimizations used in this project
 
-- Please read the [design](../README.md)
+- Please read the [design](../README.md) first
 
 ### Central repository container
 
 Using [plf::colony](https://plflib.org/) collection that offers stable memory location
-and continuous memory allocation. The *std::* containers are either pointer-stable (map, list) or continuous memory (vector, deque).
+and continuous memory allocation. The `std::` containers are either pointer-stable (`map, list`) or continuous memory (`vector, deque`). 
 
-This allows the *ThreadMonitor* automatic RAII instance to register itself in *plf::colony* central repository and save the pointer to this registration. The registration pointer is used by checkpoints to occasionally update the liveness timestamp, and by deregistration.
+The `colony` collection is sharded, 36 shards are used in the benchmarks. Shard key is a hash of `thread_id`.
+
+This allows the `ThreadMonitor` automatic RAII instance to register itself in `plf::colony` central repository and save the pointer to this registration. The registration pointer is used by checkpoints to occasionally update the liveness timestamp, and by deregistration.
+
+### Lock contention
+
+The following mutexes are used in the code:
+- In the central repository, each shard has its own mutex
+- Each `ThreadRegistration` instance stored in the central repository has its own *deletion mutex*
+
+`ThreadMonitor` registration in the central repository locks the shard mutex. The lock contention is low because:
+- The monitor cycle is sequentially locking each shard, only one shard at a time could be locked
+- The registration is using fixed { thread_id, shard } mapping, thus each thread is competing with very few (1/36 of) other threads assigned to the same shard
+- `threadMonitorCheckpoint()` is not using any mutexes, it only updates the atomic values
+- Deregistration is only using the per- registration record *deletion mutex* and marks the registration as deleted. The actual deletion from the container is done by asynchronous garbage collector
+
+### Updating the checkpoint history
+
+The checkpoint history stored in the `ThreadMonitor` on stack is not using any mutex to add a record. The circular buffer implementation is:
+- Head atomic index points to the oldest checkpoint
+- Tail atomic index points to the latest checkpoint
+- Each checkpoint contains atomic ID and duration offset from the registration point
+
+Adding new checkpoint operation is:
+- Advance head, the gap from tail to head is where new record will go
+- Store ID and offset
+- Advance tail to point to this new record
+
+The checkpoint history does not keep checkpoints that happened less than 10 us apart. Instead, it overrides the old value in place. This is why ID and offset must be atomic as well.
+
+### Central repository timestamps
+
+The central repository per-thread timestamps are stale. The checkpoint code keeps track when the central repository timestamp was updated for the last time, and updates it only once per millisecond. This is a significant optimization, reducing
+page fault count and keeping the `threadMonitorCheckpoint()` code to operate on in-stack data only.

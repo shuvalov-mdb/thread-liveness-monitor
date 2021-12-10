@@ -22,6 +22,9 @@ class ThreadMonitorBase;
 class ThreadMonitorCentralRepository {
 public:
     static inline constexpr auto kDefaultThreadTimeout = std::chrono::minutes{5};
+    // How stale a thread should be to be reported in the summary when the liveness error
+    // is detected. This is used to reduce verbosity and do not report threads that are
+    // not stale by this threshold. 
     static inline constexpr auto kStaleThreadThreshold = std::chrono::milliseconds{1};
     // How often the central repository seen alive timestamp is updated.
     // This is prorated to avoid cache misses.
