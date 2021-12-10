@@ -41,3 +41,13 @@ and then it will invoke the callback registered with `ThreadMonitorCentralReposi
 
 - Note: if you add a `threadMonitorCheckpoint()` inside the `while()` loop   above, the thread will be considered alive and the *liveness error* will not be triggered.
 
+# Benchmarks
+
+Google benchmarks:
+![gbench](docs/ThreadMonitor_benchmark.png)
+- first group is registration/derigistration pair, second group is checkpoints
+
+More detailed [benchmarks with explanation](docs/Benchmarks.md).
+
+## Design
+
