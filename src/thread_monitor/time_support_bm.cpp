@@ -27,6 +27,13 @@ BENCHMARK(BM_system_clock);
 BENCHMARK(BM_steady_clock);
 BENCHMARK(BM_high_resolution_clock);
 
+BENCHMARK(BM_system_clock)->Threads(1);
+BENCHMARK(BM_system_clock)->Threads(8);
+BENCHMARK(BM_system_clock)->Threads(16);
+BENCHMARK(BM_system_clock)->Threads(32);
+BENCHMARK(BM_system_clock)->Threads(64);
+BENCHMARK(BM_system_clock)->Threads(1024);
+
 }  // namespace
 }  // namespace thread_monitor
 
