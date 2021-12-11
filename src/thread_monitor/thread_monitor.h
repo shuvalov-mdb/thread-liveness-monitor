@@ -34,6 +34,13 @@ SOFTWARE.
 
 namespace thread_monitor {
 
+/**
+ * Method to instrument the code with checkpoints.
+ * A thread is considered alive if it last called this method within the
+ * 'thread timeout' in the past. This timeout can be configured with
+ * `setThreadTimeout()` on the ThreadMonitorCentralRepository instance.
+ * The default value is 5 minutes.
+ */
 void threadMonitorCheckpoint(uint32_t checkpointId);
 
 namespace details {
@@ -160,6 +167,8 @@ private:
  * deregisters (in the destructor) the current thread in the central repository
  * and enables the instrumentation by placing the calls to 
  * `threadMonitorCheckpoint()` anywhere in the code.
+ * 
+ * `HistoryDepth` is how many checkpoints are stored on this class.
  * 
  * Important: ThreadMonitor is designed to be used as automatic instance within
  * a method scope. It must be deleted by the same thread that created it, otherwise

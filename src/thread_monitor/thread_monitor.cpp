@@ -40,6 +40,9 @@ ThreadMonitorBase::~ThreadMonitorBase() {
     if (!_enabled) {
         return;
     }
+    // Invariant: we are in the same thread where the registration happened.
+    assert(threadLocalPtr == this);
+
     threadLocalPtr = nullptr;
 
     std::lock_guard<std::mutex> lock(_registration->monitorDeletionMutex);
@@ -73,6 +76,10 @@ void ThreadMonitorBase::checkpointInternalImpl(uint32_t id) {
     if (!_enabled) {
         return;
     }
+#ifndef NDEBUG
+    // The thread ID is consistent (check only in debug mode).
+    assert(_threadId == std::this_thread::get_id());
+#endif
 
     if (_headHistoryRecord == _historyDepth) {
         // Very first checkpoint (inserted from constructor).

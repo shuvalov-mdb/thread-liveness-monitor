@@ -165,7 +165,11 @@ private:
     std::atomic<std::chrono::system_clock::duration> _threadTimeout =
         std::chrono::duration_cast<std::chrono::system_clock::duration>(kDefaultThreadTimeout);
 
-    std::chrono::system_clock::duration _reportingInterval = kDefaultReportingInterval;
+    std::atomic<std::chrono::system_clock::duration> _reportingInterval =
+        std::chrono::duration_cast<std::chrono::system_clock::duration>(kDefaultReportingInterval);
+
+    std::atomic<std::chrono::system_clock::duration> _monitoringInterval =
+        std::chrono::duration_cast<std::chrono::system_clock::duration>(kIdleMonitorCycleInterval);
 
     // This is invoked when the thread liveness failure condition is detected.
     std::function<void()> _frozenConditionCallback;

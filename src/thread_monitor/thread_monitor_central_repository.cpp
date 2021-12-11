@@ -36,7 +36,7 @@ ThreadMonitorCentralRepository::ThreadMonitorCentralRepository(bool withMonitorT
                     std::this_thread::sleep_for(std::chrono::milliseconds{100});
                     continue;
                 }
-                std::this_thread::sleep_for(kIdleMonitorCycleInterval);
+                std::this_thread::sleep_for(_monitoringInterval.load());
             }
         });
         _monitorThread = std::unique_ptr<std::thread>(t);
@@ -76,6 +76,12 @@ void ThreadMonitorCentralRepository::setLivenessErrorConditionDetectedCallback(
     std::function<void()> cb) {
     _frozenConditionCallback = cb;
 }
+
+void ThreadMonitorCentralRepository::setMonitoringInterval(
+    std::chrono::system_clock::duration interval) {
+
+}
+
 
 ThreadMonitorCentralRepository::ThreadRegistration* ThreadMonitorCentralRepository::registerThread(
     std::thread::id threadId,
