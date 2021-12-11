@@ -103,7 +103,8 @@ protected:
     ThreadMonitorBase(const char* const name,
                       InternalHistoryRecord* historyPtr,
                       uint32_t historyDepth,
-                      uint32_t firstCheckpointId);
+                      uint32_t firstCheckpointId,
+                      bool enabled);
     // The inheritance is non-virtual as the instance of this class can exist
     // only on the stack and the destructor by the pointer of the base class
     // cannot be invoked.
@@ -181,9 +182,11 @@ public:
     /**
      * @param name Thread name, the pointer should remain valid for the lifetime.
      * @param firstCheckpointId the checkpoint id for the registration checkpoint.
+     * @param enabled instantiate this class without enabling it
      */
     ThreadMonitor(const char* const name,
-                  uint32_t firstCheckpointId);
+                  uint32_t firstCheckpointId,
+                  bool enabled = true);
 
 private:
     // The actual history circular list is stored on stack.
@@ -192,7 +195,8 @@ private:
 
 template <uint32_t HistoryDepth>
 ThreadMonitor<HistoryDepth>::ThreadMonitor(const char* const name,
-                                           uint32_t firstCheckpointId)
-    : ThreadMonitorBase(name, _history, HistoryDepth, firstCheckpointId) {}
+                                           uint32_t firstCheckpointId,
+                                           bool enabled)
+    : ThreadMonitorBase(name, _history, HistoryDepth, firstCheckpointId, enabled) {}
 
 }  // namespace thread_monitor

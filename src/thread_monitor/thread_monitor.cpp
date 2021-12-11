@@ -23,11 +23,16 @@ thread_local ThreadMonitorBase* threadLocalPtr = nullptr;
 ThreadMonitorBase::ThreadMonitorBase(const char* const name,
                                      InternalHistoryRecord* historyPtr,
                                      uint32_t historyDepth,
-                                     uint32_t firstCheckpointId)
-    : _name(name ? name : "default"), _historyPtr(historyPtr), _historyDepth(historyDepth) {
+                                     uint32_t firstCheckpointId,
+                                     bool enabled)
+    : _name(name ? name : "default"), _historyPtr(historyPtr),
+      _historyDepth(historyDepth), _enabled(enabled) {
+    if (!_enabled) {
+        return;  // Initially disabled.
+    }
     _maybeRegisterThreadLocal();
     if (!_enabled) {
-        return;
+        return;  // Another instance exists up the stack.
     }
     checkpointInternalImpl(firstCheckpointId);
     auto* const centralRepo = ThreadMonitorCentralRepository::instance();

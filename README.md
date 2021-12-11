@@ -66,6 +66,10 @@ The count of checkpoints stored is the class template parameter. The `ThreadMoni
 This timestamp is stale because it is updated only as often as configured, for the
 performance reasons.
 
+It is possible to instantiate the `ThreadMonitor` more than once in the same thread. Only the 1st instance will have any effect. This is supported for the reason the call tree could be complex and preventing duplicate instantiations could be cumbersome.
+
+### Parameters
+
 - *reporting interval*: how often a thread should update its timestamp in the central repository. The default value of 1 ms should be good for most cases
 - *monitoring interval*: how often the central repository monitoring and garbage
   collection cycle should run. It should be reasonably often because the deregistered `ThreadMonitor` instances may accumulate and waste memory. The default value is set to run it relatively often for those cases when there is a
