@@ -49,7 +49,7 @@ Google benchmarks:
 
 More detailed [benchmarks and optimizations](docs/Benchmarks.md).
 
-## Design
+# Design
 
 `ThreadMonitor` class to be instantiated on stack, registers itself with singleton of `ThreadMonitorCentralRepository` and with thread local pointer to itself. In the destructor, `~ThreadMonitor()` sets the thread local pointer to `nullptr` and marks itself as deleted at the `ThreadMonitorCentralRepository`.
 
@@ -68,7 +68,7 @@ performance reasons.
 
 It is possible to instantiate the `ThreadMonitor` more than once in the same thread. Only the 1st instance will have any effect. This is supported for the reason the call tree could be complex and preventing duplicate instantiations could be cumbersome.
 
-### Parameters
+## Parameters
 
 - *reporting interval*: how often a thread should update its timestamp in the central repository. The default value of 1 ms should be good for most cases
 - *monitoring interval*: how often the central repository monitoring and garbage
@@ -78,3 +78,10 @@ It is possible to instantiate the `ThreadMonitor` more than once in the same thr
 - *thread timeout*: sets how long the thread should be stale before it is  considered not live anymore (frozen, deadlocked), which triggers the fault procedures. The default value of 5 minutes is recommended for production
 - *liveness error condition callback*: a callback that will be invoked once the liveness error is detected. It is recommended to terminate the server when it happens
 
+
+# Related Work / References
+
+- [Looper: Lightweight Detection of
+Infinite Loops at Runtime](https://www.burn.im/pubs/BurnimJalbertStergiouSen-ASE09.pdf)
+- [Can a runtime environment detect an infinite loop?](https://cs.stackexchange.com/questions/11645/can-a-runtime-environment-detect-an-infinite-loop)
+- [Code that debugs itself: Fixing a deadlock with a watchdog](https://medium.com/bluecore-engineering/code-that-debugs-itself-fixing-a-deadlock-with-a-watchdog-cd83019cce2e)
