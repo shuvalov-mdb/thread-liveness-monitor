@@ -81,7 +81,10 @@ It is possible to instantiate the `ThreadMonitor` more than once in the same thr
 
 # Related Work / References
 
+- [Ways to detect deadlock in a live application](https://stackoverflow.com/questions/43622603/ways-to-detect-deadlock-in-a-live-application)
 - [Looper: Lightweight Detection of
 Infinite Loops at Runtime](https://www.burn.im/pubs/BurnimJalbertStergiouSen-ASE09.pdf)
 - [Can a runtime environment detect an infinite loop?](https://cs.stackexchange.com/questions/11645/can-a-runtime-environment-detect-an-infinite-loop)
+- [How one thread monitor other thread?](https://stackoverflow.com/questions/59687543/how-one-thread-monitor-other-thread)
 - [Code that debugs itself: Fixing a deadlock with a watchdog](https://medium.com/bluecore-engineering/code-that-debugs-itself-fixing-a-deadlock-with-a-watchdog-cd83019cce2e)
+- [Thread progress monitoring in Python](https://greenash.net.au/thoughts/2011/06/thread-progress-monitoring-in-python/)
