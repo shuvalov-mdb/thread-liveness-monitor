@@ -2,7 +2,7 @@
 ------------
 
 TLM is production ready C++ library designed to detect deadlocks, livelocks and
-starvation at runtime with tiny overhead. The project is sponsored and copyrighted by [MongoDB.com](http://mongodb.com), author [Andrew Shuvalov](https://www.linkedin.com/in/andrewshuvalov/).
+starvation at runtime with tiny overhead. The project is sponsored and copyrighted by [MongoDB Inc](http://mongodb.com), author [Andrew Shuvalov](https://www.linkedin.com/in/andrewshuvalov/).
 
 ## Sample Usage
   ```
@@ -43,7 +43,7 @@ and then it will invoke the callback registered with `ThreadMonitorCentralReposi
 
 # Benchmarks
 
-Google benchmarks:
+Google benchmarks on Platinum 8275CL CPU @ 3.00GHz, with CPU scaling on:
 ![gbench](docs/ThreadMonitor_benchmark.png)
 - first group is registration/derigistration pair, second group is checkpoints
 
