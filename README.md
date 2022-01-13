@@ -5,7 +5,7 @@ TLM is production ready C++ library designed to detect deadlocks, livelocks and
 starvation at runtime with tiny overhead. The project is sponsored and copyrighted by [MongoDB Inc](http://mongodb.com), author [Andrew Shuvalov](https://www.linkedin.com/in/andrewshuvalov/).
 
 ## Sample Usage
-  ```
+  ```c++
   #include "thread_monitor/thread_monitor.h"
 
   void myLivelockedMethod();
