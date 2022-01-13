@@ -41,6 +41,25 @@ BENCHMARK(BM_Checkpoint)->Threads(64)->MinTime(1);
 BENCHMARK(BM_Checkpoint)->Threads(128)->MinTime(1);
 BENCHMARK(BM_Checkpoint)->Threads(1024)->MinTime(1);
 
+static void BM_FullCycle1000Checkpoints(benchmark::State& state) {
+    for (auto _ : state) {
+        ThreadMonitor<> monitor("test", 1);
+        for (int i = 0; i < 1000; ++i) {
+            threadMonitorCheckpoint(2);
+        }
+    }
+    ThreadMonitorCentralRepository::instance()->runMonitorCycle();
+}
+
+BENCHMARK(BM_FullCycle1000Checkpoints)->Threads(1)->MinTime(5);
+BENCHMARK(BM_FullCycle1000Checkpoints)->Threads(4)->MinTime(5);
+BENCHMARK(BM_FullCycle1000Checkpoints)->Threads(8)->MinTime(5);
+BENCHMARK(BM_FullCycle1000Checkpoints)->Threads(16)->MinTime(5);
+BENCHMARK(BM_FullCycle1000Checkpoints)->Threads(32)->MinTime(5);
+BENCHMARK(BM_FullCycle1000Checkpoints)->Threads(64)->MinTime(5);
+BENCHMARK(BM_FullCycle1000Checkpoints)->Threads(128)->MinTime(5);
+BENCHMARK(BM_FullCycle1000Checkpoints)->Threads(1024)->MinTime(5);
+
 static void BM_GCAndMonitor(benchmark::State& state) {
     ThreadMonitorCentralRepository::instance()->runMonitorCycle();
     ThreadMonitor<> monitor("test", 1);
